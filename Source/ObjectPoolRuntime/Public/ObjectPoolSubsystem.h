@@ -163,7 +163,7 @@ private:
 	FGameplayTag ResolveCurrentModeTag() const;
 	FPooledObjectBucket& FindOrAddActorBucket(UClass* ActorClass, const FActorPoolClassConfig& Config);
 	AActor* CreateActor(UClass* ActorClass, const FTransform& Transform, AActor* Owner, APawn* Instigator);
-	void ActivateActor(AActor* Actor, const FActorPoolAcquireContext& Context);
+	bool ActivateActor(AActor* Actor, const FActorPoolAcquireContext& Context);
 	void DeactivateActor(AActor* Actor, EObjectPoolRecoveryPolicy RecoveryPolicy);
 	void InvokeAcquireCallback(AActor* Actor, const FActorPoolAcquireContext& Context) const;
 	void InvokeReleaseCallback(AActor* Actor) const;
@@ -204,7 +204,11 @@ private:
 	void PrepareActorNetworkAcquire(AActor* Actor, const FActorPoolAcquireContext& Context);
 	void PrepareActorNetworkRelease(AActor* Actor);
 	bool HasAnyActiveEntries() const;
+	bool IsActorClassTransitioning(UClass* ActorClass) const;
+	bool IsObjectClassTransitioning(UClass* ObjectClass) const;
+	bool IsComponentClassTransitioning(UClass* ComponentClass) const;
 	void ResetPoolsForModeSwitch();
+	bool RefreshSettingsValidity();
 
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<UClass>, FPooledObjectBucket> ActorPools;
@@ -255,6 +259,7 @@ private:
 	FGameplayTag CurrentModeTag;
 
 	bool bIsDeinitializing = false;
+	bool bSettingsValid = false;
 	bool bActorPrewarmComplete = false;
 	bool bObjectPrewarmComplete = false;
 	bool bComponentPrewarmComplete = false;

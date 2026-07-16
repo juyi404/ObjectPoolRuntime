@@ -83,10 +83,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FObjectPoolConfigurationValidationTest::RunTest(const FString& Parameters)
 {
 	UObjectPoolSettings* Settings = GetMutableDefault<UObjectPoolSettings>();
+	const bool PreviousEnabled = Settings->bEnabled;
 	const FPoolModeConfig PreviousDefaultModeConfig = Settings->DefaultModeConfig;
 	const TMap<FGameplayTag, FPoolModeConfig> PreviousModeConfigs = Settings->ModeConfigs;
 
 	Settings->DefaultModeConfig = FPoolModeConfig();
+	Settings->bEnabled = true;
 	Settings->ModeConfigs.Reset();
 	FString Error;
 	TestTrue(TEXT("Empty generic configuration is valid"), Settings->ValidateSettings(&Error));
@@ -111,6 +113,43 @@ bool FObjectPoolConfigurationValidationTest::RunTest(const FString& Parameters)
 	Settings->DefaultModeConfig.ObjectPools.Add(InvalidObject);
 	TestFalse(TEXT("Actor classes in the UObject pool are rejected"), Settings->ValidateSettings(&Error));
 
+	Settings->DefaultModeConfig = PreviousDefaultModeConfig;
+	Settings->bEnabled = PreviousEnabled;
+	Settings->ModeConfigs = PreviousModeConfigs;
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FObjectPoolInvalidConfigurationRuntimeTest,
+	"Pool.ObjectPool.Settings.InvalidConfigurationDisablesRuntime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FObjectPoolInvalidConfigurationRuntimeTest::RunTest(const FString& Parameters)
+{
+	UObjectPoolSettings* Settings = GetMutableDefault<UObjectPoolSettings>();
+	const bool PreviousEnabled = Settings->bEnabled;
+	const FPoolModeConfig PreviousDefaultModeConfig = Settings->DefaultModeConfig;
+	const TMap<FGameplayTag, FPoolModeConfig> PreviousModeConfigs = Settings->ModeConfigs;
+
+	Settings->bEnabled = true;
+	Settings->ModeConfigs.Reset();
+	FActorPoolClassConfig InvalidConfig;
+	InvalidConfig.ActorClass = AObjectPoolTestNetworkActor::StaticClass();
+	InvalidConfig.MaxPoolSize = 1;
+	InvalidConfig.ServerPreallocateCount = 2;
+	Settings->DefaultModeConfig.ActorPools = { InvalidConfig };
+
+	AddExpectedError(TEXT("Object-pool configuration is invalid; pooling is disabled"),
+		EAutomationExpectedErrorFlags::Contains, 1);
+	UWorld* World = ObjectPoolSubsystemTests::CreateTestWorld(TEXT("ObjectPoolInvalidConfigurationWorld"));
+	UObjectPoolSubsystem* Subsystem = World != nullptr ? World->GetSubsystem<UObjectPoolSubsystem>() : nullptr;
+	TestNotNull(TEXT("Invalid configuration still creates subsystem"), Subsystem);
+	TestNull(TEXT("Invalid configuration disables acquisition"), Subsystem != nullptr
+		? Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity)
+		: nullptr);
+
+	ObjectPoolSubsystemTests::DestroyTestWorld(World);
+	Settings->bEnabled = PreviousEnabled;
 	Settings->DefaultModeConfig = PreviousDefaultModeConfig;
 	Settings->ModeConfigs = PreviousModeConfigs;
 	return true;
@@ -541,6 +580,10 @@ bool FObjectPoolCallbackInvalidationTest::RunTest(const FString& Parameters)
 	ActorConfig.ActorClass = AObjectPoolTestNetworkActor::StaticClass();
 	ActorConfig.MaxPoolSize = 1;
 	ModeConfig.ActorPools.Add(ActorConfig);
+	FActorPoolClassConfig DerivedActorConfig;
+	DerivedActorConfig.ActorClass = AObjectPoolTestDerivedNetworkActor::StaticClass();
+	DerivedActorConfig.MaxPoolSize = 1;
+	ModeConfig.ActorPools.Add(DerivedActorConfig);
 	FObjectPoolClassConfig ObjectConfig;
 	ObjectConfig.ObjectClass = FSoftClassPath(UObjectPoolTestObject::StaticClass());
 	ObjectConfig.MaxPoolSize = 1;
@@ -553,6 +596,10 @@ bool FObjectPoolCallbackInvalidationTest::RunTest(const FString& Parameters)
 
 	UWorld* World = ObjectPoolSubsystemTests::CreateTestWorld(TEXT("ObjectPoolCallbackInvalidationWorld"));
 	UObjectPoolSubsystem* Subsystem = World != nullptr ? World->GetSubsystem<UObjectPoolSubsystem>() : nullptr;
+	AObjectPoolTestNetworkActor::bDestroyNextOnCreated = true;
+	TestNull(TEXT("Actor destroyed by its created callback is not returned"), Subsystem != nullptr
+		? Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity)
+		: nullptr);
 	AObjectPoolTestNetworkActor* Actor = Subsystem != nullptr
 		? Cast<AObjectPoolTestNetworkActor>(Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity))
 		: nullptr;
@@ -565,6 +612,11 @@ bool FObjectPoolCallbackInvalidationTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Actor callback observes Releasing"), Actor->StateObservedDuringRelease, EObjectPoolEntryState::Releasing);
 		TestFalse(TEXT("Recursive actor release is rejected"), Actor->bReentrantReleaseResult);
 		TestNull(TEXT("Actor acquire during release is rejected"), Actor->ReentrantAcquireResult.Get());
+		TestEqual(TEXT("Released replicated actor remains awake until its final update can be sent"),
+			Actor->NetDormancy, DORM_Awake);
+		World->Tick(LEVELTICK_All, 0.01f);
+		TestEqual(TEXT("Released replicated actor becomes dormant on the next tick"),
+			Actor->NetDormancy, DORM_DormantAll);
 
 		Actor = Cast<AObjectPoolTestNetworkActor>(
 			Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity));
@@ -572,13 +624,56 @@ bool FObjectPoolCallbackInvalidationTest::RunTest(const FString& Parameters)
 		Actor->bDestroyOnRelease = true;
 		TestFalse(TEXT("Actor destroyed by its callback is removed instead of returned inactive"),
 			Subsystem->ReleaseActorToPool(Actor));
+
+		AObjectPoolTestNetworkActor* ReentrantActor = Cast<AObjectPoolTestNetworkActor>(
+			Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity));
+		TestNotNull(TEXT("Unrelated reentrant acquire creates source actor"), ReentrantActor);
+		if (ReentrantActor != nullptr)
+		{
+			ReentrantActor->PoolForReentrantRelease = Subsystem;
+			ReentrantActor->ReentrantAcquireClass = AObjectPoolTestDerivedNetworkActor::StaticClass();
+			ReentrantActor->bAttemptReentrantRelease = true;
+			TestTrue(TEXT("Actor release permits acquire from an unrelated bucket"),
+				Subsystem->ReleaseActorToPool(ReentrantActor));
+			TestNotNull(TEXT("Unrelated bucket acquire succeeds during release callback"),
+				ReentrantActor->ReentrantAcquireResult.Get());
+			if (AActor* ReentrantResult = ReentrantActor->ReentrantAcquireResult.Get())
+			{
+				Subsystem->ReleaseActorToPool(ReentrantResult);
+			}
+		}
+
+		AObjectPoolTestNetworkActor* AcquireInvalidationActor = Cast<AObjectPoolTestNetworkActor>(
+			Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity));
+		TestNotNull(TEXT("Acquire invalidation creates actor"), AcquireInvalidationActor);
+		if (AcquireInvalidationActor != nullptr)
+		{
+			TestTrue(TEXT("Acquire invalidation actor enters pool"), Subsystem->ReleaseActorToPool(AcquireInvalidationActor));
+			AcquireInvalidationActor->bDestroyOnAcquire = true;
+			TestNull(TEXT("Actor destroyed by acquire callback is not returned"),
+				Subsystem->SpawnActorFromPool(AObjectPoolTestNetworkActor::StaticClass(), FTransform::Identity));
+		}
 	}
 
 	UObjectPoolTestObject* Outer = World != nullptr ? NewObject<UObjectPoolTestObject>(World) : nullptr;
+	UObjectPoolTestObject::bMarkNextCreatedGarbage = true;
+	TestNull(TEXT("UObject invalidated by its created callback is not returned"), Subsystem != nullptr
+		? Subsystem->GetObjectFromPool(Outer, UObjectPoolTestObject::StaticClass())
+		: nullptr);
 	UObjectPoolTestObject* Object = Subsystem != nullptr
 		? Cast<UObjectPoolTestObject>(Subsystem->GetObjectFromPool(Outer, UObjectPoolTestObject::StaticClass()))
 		: nullptr;
 	TestNotNull(TEXT("Callback invalidation test creates UObject"), Object);
+	if (Subsystem != nullptr && Object != nullptr)
+	{
+		TestTrue(TEXT("UObject enters pool before acquire invalidation"), Subsystem->ReleaseObjectToPool(Object));
+		Object->bMarkGarbageOnAcquire = true;
+		TestNull(TEXT("Garbage-marked UObject acquire is rejected"),
+			Subsystem->GetObjectFromPool(Outer, UObjectPoolTestObject::StaticClass()));
+
+		Object = Cast<UObjectPoolTestObject>(Subsystem->GetObjectFromPool(Outer, UObjectPoolTestObject::StaticClass()));
+		TestNotNull(TEXT("Callback invalidation recreates UObject"), Object);
+	}
 	if (Subsystem != nullptr && Object != nullptr)
 	{
 		Object->bMarkGarbageOnRelease = true;
@@ -587,10 +682,25 @@ bool FObjectPoolCallbackInvalidationTest::RunTest(const FString& Parameters)
 	}
 
 	AActor* ComponentOwner = World != nullptr ? World->SpawnActor<AActor>() : nullptr;
+	UObjectPoolTestComponent::bMarkNextCreatedGarbage = true;
+	TestNull(TEXT("Component invalidated by its created callback is not returned"), Subsystem != nullptr
+		? Subsystem->GetComponentFromPool(ComponentOwner, UObjectPoolTestComponent::StaticClass())
+		: nullptr);
 	UObjectPoolTestComponent* Component = Subsystem != nullptr
 		? Cast<UObjectPoolTestComponent>(Subsystem->GetComponentFromPool(ComponentOwner, UObjectPoolTestComponent::StaticClass()))
 		: nullptr;
 	TestNotNull(TEXT("Callback invalidation test creates component"), Component);
+	if (Subsystem != nullptr && Component != nullptr)
+	{
+		TestTrue(TEXT("Component enters pool before acquire invalidation"), Subsystem->ReleaseComponentToPool(Component));
+		Component->bMarkGarbageOnAcquire = true;
+		TestNull(TEXT("Garbage-marked component acquire is rejected"),
+			Subsystem->GetComponentFromPool(ComponentOwner, UObjectPoolTestComponent::StaticClass()));
+
+		Component = Cast<UObjectPoolTestComponent>(
+			Subsystem->GetComponentFromPool(ComponentOwner, UObjectPoolTestComponent::StaticClass()));
+		TestNotNull(TEXT("Callback invalidation recreates component"), Component);
+	}
 	if (Subsystem != nullptr && Component != nullptr)
 	{
 		Component->bMarkGarbageOnRelease = true;

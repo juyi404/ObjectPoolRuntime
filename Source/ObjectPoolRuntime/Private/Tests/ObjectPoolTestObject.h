@@ -12,8 +12,23 @@ class UObjectPoolTestObject : public UObject, public IPoolableObjectInterface
 
 public:
 	virtual bool IsSupportedForNetworking() const override { return true; }
-	virtual void OnObjectPoolCreated_Implementation() override { ++CreatedCount; }
-	virtual void OnObjectAcquired_Implementation() override { ++AcquiredCount; }
+	virtual void OnObjectPoolCreated_Implementation() override
+	{
+		++CreatedCount;
+		if (bMarkNextCreatedGarbage)
+		{
+			bMarkNextCreatedGarbage = false;
+			MarkAsGarbage();
+		}
+	}
+	virtual void OnObjectAcquired_Implementation() override
+	{
+		++AcquiredCount;
+		if (bMarkGarbageOnAcquire)
+		{
+			MarkAsGarbage();
+		}
+	}
 	virtual void OnObjectReleased_Implementation() override
 	{
 		++ReleasedCount;
@@ -38,6 +53,8 @@ public:
 	bool bAttemptReentrantRelease = false;
 	bool bReentrantReleaseResult = false;
 	bool bMarkGarbageOnRelease = false;
+	bool bMarkGarbageOnAcquire = false;
+	inline static bool bMarkNextCreatedGarbage = false;
 	TObjectPtr<UObject> ReentrantAcquireResult = nullptr;
 	EObjectPoolEntryState StateObservedDuringRelease = EObjectPoolEntryState::Unmanaged;
 	TWeakObjectPtr<UObjectPoolSubsystem> PoolForReentrantRelease;

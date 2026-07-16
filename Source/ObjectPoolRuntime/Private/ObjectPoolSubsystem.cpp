@@ -34,17 +34,20 @@ void UObjectPoolSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bComponentPrewarmComplete = false;
 	PoolOuter = NewObject<UObjectPoolContainer>(this, TEXT("ObjectPoolOuter"), RF_Transient);
 	CurrentModeTag = ResolveCurrentModeTag();
-	FString SettingsError;
-	if (!GetDefault<UObjectPoolSettings>()->ValidateSettings(&SettingsError))
-	{
-		UE_LOG(LogObjectPool, Error, TEXT("Object-pool configuration is invalid: %s"), *SettingsError);
-	}
+	RefreshSettingsValidity();
 }
 
 void UObjectPoolSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	check(IsInGameThread());
 	Super::OnWorldBeginPlay(InWorld);
+	if (!RefreshSettingsValidity())
+	{
+		bActorPrewarmComplete = true;
+		bObjectPrewarmComplete = true;
+		bComponentPrewarmComplete = true;
+		return;
+	}
 	CurrentModeTag = ResolveCurrentModeTag();
 	BeginActorPrewarm();
 	BeginObjectPrewarm();
@@ -55,6 +58,10 @@ bool UObjectPoolSubsystem::SwitchModeTag(const FGameplayTag NewModeTag)
 {
 	check(IsInGameThread());
 	if (bIsDeinitializing)
+	{
+		return false;
+	}
+	if (!RefreshSettingsValidity())
 	{
 		return false;
 	}
@@ -147,7 +154,7 @@ AActor* UObjectPoolSubsystem::SpawnActorFromPool(
 	UWorld* World = GetWorld();
 	UClass* Class = ActorClass.Get();
 	const UObjectPoolSettings* Settings = GetDefault<UObjectPoolSettings>();
-	if (bIsDeinitializing || World == nullptr || Class == nullptr || !Settings->bEnabled || !IsObjectPoolRuntimeEnabled())
+	if (bIsDeinitializing || !bSettingsValid || World == nullptr || Class == nullptr || !Settings->bEnabled || !IsObjectPoolRuntimeEnabled())
 	{
 		if (IsObjectPoolDebugLoggingEnabled())
 		{
@@ -155,14 +162,13 @@ AActor* UObjectPoolSubsystem::SpawnActorFromPool(
 		}
 		return nullptr;
 	}
-	if (!ActorTransitions.IsEmpty())
-	{
-		return nullptr;
-	}
-
 	if (!Class->IsChildOf(AActor::StaticClass()) || Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated))
 	{
 		UE_LOG(LogObjectPool, Warning, TEXT("Cannot pool invalid actor class %s."), *GetNameSafe(Class));
+		return nullptr;
+	}
+	if (IsActorClassTransitioning(Class))
+	{
 		return nullptr;
 	}
 
@@ -222,6 +228,12 @@ AActor* UObjectPoolSubsystem::SpawnActorFromPool(
 		{
 			ObjectPoolActorCallbacks::Created(Actor);
 		}
+		if (!IsValid(Actor) || ManagedActors.Find(Actor) == nullptr || !Bucket.ContainsActive(Actor))
+		{
+			Bucket.Remove(Actor);
+			ManagedActors.Remove(Actor);
+			return nullptr;
+		}
 	}
 
 	FActorPoolAcquireContext Context;
@@ -229,7 +241,12 @@ AActor* UObjectPoolSubsystem::SpawnActorFromPool(
 	Context.Owner = Owner;
 	Context.Instigator = Instigator;
 	Context.ModeTag = CurrentModeTag;
-	ActivateActor(Actor, Context);
+	if (!ActivateActor(Actor, Context))
+	{
+		Bucket.Remove(Actor);
+		ManagedActors.Remove(Actor);
+		return nullptr;
+	}
 	ValidateAfterMutation(TEXT("AcquireActor"));
 	return Actor;
 }
@@ -301,20 +318,19 @@ UObject* UObjectPoolSubsystem::GetObjectFromPool(UObject* Outer, const TSubclass
 	check(IsInGameThread());
 	UClass* Class = ObjectClass.Get();
 	const UObjectPoolSettings* Settings = GetDefault<UObjectPoolSettings>();
-	if (bIsDeinitializing || Outer == nullptr || Class == nullptr || PoolOuter == nullptr ||
+	if (bIsDeinitializing || !bSettingsValid || Outer == nullptr || Class == nullptr || PoolOuter == nullptr ||
 		!Settings->bEnabled || !IsObjectPoolRuntimeEnabled())
 	{
 		return nullptr;
 	}
-	if (!ObjectTransitions.IsEmpty())
-	{
-		return nullptr;
-	}
-
 	if (Class->IsChildOf(AActor::StaticClass()) || Class->IsChildOf(UActorComponent::StaticClass()) ||
 		Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated))
 	{
 		UE_LOG(LogObjectPool, Warning, TEXT("Cannot use class %s in the UObject pool."), *GetNameSafe(Class));
+		return nullptr;
+	}
+	if (IsObjectClassTransitioning(Class))
+	{
 		return nullptr;
 	}
 
@@ -369,6 +385,14 @@ UObject* UObjectPoolSubsystem::GetObjectFromPool(UObject* Outer, const TSubclass
 
 	RegisterObjectForReplication(Object, Outer, *Config);
 	InvokeObjectAcquireCallback(Object);
+	if (!IsValid(Object) || ManagedObjects.Find(Object) == nullptr || !Bucket.ContainsActive(Object))
+	{
+		UnregisterObjectFromReplication(Object, EObjectPoolRemoteSubObjectReleasePolicy::DestroyRemoteReplica);
+		Bucket.Remove(Object);
+		ManagedObjects.Remove(Object);
+		ReplicatedObjectOwners.Remove(Object);
+		return nullptr;
+	}
 	ValidateAfterMutation(TEXT("AcquireObject"));
 	return Object;
 }
@@ -456,19 +480,18 @@ UActorComponent* UObjectPoolSubsystem::GetComponentFromPool(
 	check(IsInGameThread());
 	UClass* Class = ComponentClass.Get();
 	const UObjectPoolSettings* Settings = GetDefault<UObjectPoolSettings>();
-	if (bIsDeinitializing || !IsValid(Owner) || Owner->GetWorld() != GetWorld() || Class == nullptr ||
+	if (bIsDeinitializing || !bSettingsValid || !IsValid(Owner) || Owner->GetWorld() != GetWorld() || Class == nullptr ||
 		!Settings->bEnabled || !IsObjectPoolRuntimeEnabled())
 	{
 		return nullptr;
 	}
-	if (!ComponentTransitions.IsEmpty())
-	{
-		return nullptr;
-	}
-
 	if (!Class->IsChildOf(UActorComponent::StaticClass()) || Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated))
 	{
 		UE_LOG(LogObjectPool, Warning, TEXT("Cannot use class %s in the component pool."), *GetNameSafe(Class));
+		return nullptr;
+	}
+	if (IsComponentClassTransitioning(Class))
+	{
 		return nullptr;
 	}
 
@@ -526,6 +549,12 @@ UActorComponent* UObjectPoolSubsystem::GetComponentFromPool(
 	}
 	ActivateComponentReplication(Component, *Config);
 	InvokeComponentAcquireCallback(Component);
+	if (!IsValid(Component) || ManagedComponents.Find(Component) == nullptr || !Bucket.ContainsActive(Component))
+	{
+		Bucket.Remove(Component);
+		ManagedComponents.Remove(Component);
+		return nullptr;
+	}
 	ValidateAfterMutation(TEXT("AcquireComponent"));
 	return Component;
 }
@@ -1123,6 +1152,42 @@ bool UObjectPoolSubsystem::HasAnyActiveEntries() const
 	return false;
 }
 
+bool UObjectPoolSubsystem::IsActorClassTransitioning(UClass* ActorClass) const
+{
+	for (const TPair<TObjectPtr<AActor>, EObjectPoolEntryState>& Pair : ActorTransitions)
+	{
+		if (ManagedActors.FindRef(Pair.Key) == ActorClass)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UObjectPoolSubsystem::IsObjectClassTransitioning(UClass* ObjectClass) const
+{
+	for (const TPair<TObjectPtr<UObject>, EObjectPoolEntryState>& Pair : ObjectTransitions)
+	{
+		if (ManagedObjects.FindRef(Pair.Key) == ObjectClass)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UObjectPoolSubsystem::IsComponentClassTransitioning(UClass* ComponentClass) const
+{
+	for (const TPair<TObjectPtr<UActorComponent>, EObjectPoolEntryState>& Pair : ComponentTransitions)
+	{
+		if (ManagedComponents.FindRef(Pair.Key) == ComponentClass)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void UObjectPoolSubsystem::ResetPoolsForModeSwitch()
 {
 	if (ActorPrewarmHandle.IsValid())
@@ -1406,8 +1471,12 @@ AActor* UObjectPoolSubsystem::CreateActor(
 	return Actor;
 }
 
-void UObjectPoolSubsystem::ActivateActor(AActor* Actor, const FActorPoolAcquireContext& Context)
+bool UObjectPoolSubsystem::ActivateActor(AActor* Actor, const FActorPoolAcquireContext& Context)
 {
+	if (!IsValid(Actor))
+	{
+		return false;
+	}
 	Actor->SetActorTransform(Context.Transform, false, nullptr, ETeleportType::TeleportPhysics);
 	Actor->SetOwner(Context.Owner);
 	Actor->SetInstigator(Context.Instigator);
@@ -1415,7 +1484,12 @@ void UObjectPoolSubsystem::ActivateActor(AActor* Actor, const FActorPoolAcquireC
 	Actor->SetActorEnableCollision(true);
 	Actor->SetActorTickEnabled(true);
 	InvokeAcquireCallback(Actor, Context);
+	if (!IsValid(Actor))
+	{
+		return false;
+	}
 	PrepareActorNetworkAcquire(Actor, Context);
+	return IsValid(Actor);
 }
 
 void UObjectPoolSubsystem::DeactivateActor(AActor* Actor, const EObjectPoolRecoveryPolicy RecoveryPolicy)
@@ -1487,9 +1561,33 @@ void UObjectPoolSubsystem::PrepareActorNetworkRelease(AActor* Actor)
 		return;
 	}
 
+	Actor->SetNetDormancy(DORM_Awake);
+	Actor->FlushNetDormancy();
 	NetworkState->SetPoolActiveFromServer(false);
 	Actor->ForceNetUpdate();
-	Actor->SetNetDormancy(DORM_DormantAll);
+
+	TWeakObjectPtr<AActor> WeakActor(Actor);
+	TWeakObjectPtr<UPooledActorNetworkStateComponent> WeakNetworkState(NetworkState);
+	GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakActor, WeakNetworkState]()
+	{
+		AActor* PendingActor = WeakActor.Get();
+		UPooledActorNetworkStateComponent* PendingState = WeakNetworkState.Get();
+		if (PendingActor != nullptr && PendingState != nullptr && !PendingState->IsPoolActive())
+		{
+			PendingActor->SetNetDormancy(DORM_DormantAll);
+		}
+	}));
+}
+
+bool UObjectPoolSubsystem::RefreshSettingsValidity()
+{
+	FString SettingsError;
+	bSettingsValid = GetDefault<UObjectPoolSettings>()->ValidateSettings(&SettingsError);
+	if (!bSettingsValid)
+	{
+		UE_LOG(LogObjectPool, Error, TEXT("Object-pool configuration is invalid; pooling is disabled: %s"), *SettingsError);
+	}
+	return bSettingsValid;
 }
 
 void UObjectPoolSubsystem::RegisterObjectForReplication(

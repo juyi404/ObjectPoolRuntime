@@ -13,8 +13,23 @@ class UObjectPoolTestComponent : public UActorComponent, public IPoolableCompone
 
 public:
 	virtual bool GetComponentClassCanReplicate() const override { return true; }
-	virtual void OnComponentPoolCreated_Implementation() override { ++CreatedCount; }
-	virtual void OnComponentAcquired_Implementation() override { ++AcquiredCount; }
+	virtual void OnComponentPoolCreated_Implementation() override
+	{
+		++CreatedCount;
+		if (bMarkNextCreatedGarbage)
+		{
+			bMarkNextCreatedGarbage = false;
+			MarkAsGarbage();
+		}
+	}
+	virtual void OnComponentAcquired_Implementation() override
+	{
+		++AcquiredCount;
+		if (bMarkGarbageOnAcquire)
+		{
+			MarkAsGarbage();
+		}
+	}
 	virtual void OnComponentReleased_Implementation() override
 	{
 		++ReleasedCount;
@@ -39,6 +54,8 @@ public:
 	bool bAttemptReentrantRelease = false;
 	bool bReentrantReleaseResult = false;
 	bool bMarkGarbageOnRelease = false;
+	bool bMarkGarbageOnAcquire = false;
+	inline static bool bMarkNextCreatedGarbage = false;
 	EObjectPoolEntryState StateObservedDuringRelease = EObjectPoolEntryState::Unmanaged;
 	TObjectPtr<UActorComponent> ReentrantAcquireResult = nullptr;
 	TWeakObjectPtr<UObjectPoolSubsystem> PoolForReentrantRelease;

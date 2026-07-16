@@ -38,7 +38,7 @@
       <p><code>ObjectPoolRuntime</code> 是一个独立于具体玩法的 Unreal Engine 运行时插件，为 Actor、普通 UObject 和 ActorComponent 提供统一的池化能力。插件核心由世界级子系统、按类分桶容器、数据驱动配置、生命周期接口和网络复制支持构成。</p>
       <div class="mapping"><div><strong>对外入口</strong><br><code>UObjectPoolSubsystem</code><br><code>UObjectPoolSettings</code></div><span class="arrow">→</span><div><strong>内部基础</strong><br><code>FPooledObjectBucket</code><br><code>EObjectPoolEntryState</code></div></div>
       <div class="callout"><strong>复制安全底线</strong>　只有 <code>DestroyRemoteReplica</code> 允许同一个服务端 UObject/Component 实例回池并再次复用；其余远端释放策略会主动放弃服务端实例，避免网络身份与 Owner 冲突。</div>
-      <div class="shots"><figure><img src="object-pool-article-assets/image1.png" alt="对象池总体架构图"><figcaption>图 1：对象池总体架构与职责分层</figcaption></figure></div>
+      <div class="shots"><figure><img src="object-pool-article-assets/object-pool-architecture-current.png" alt="ObjectPoolRuntime 当前对象池架构图"><figcaption>图 1：ObjectPoolRuntime 当前架构与职责分层</figcaption></figure></div>
     </section>
 
     <section class="chapter" id="c1"><span class="chapter-no">CHAPTER 01</span><h2>为什么需要对象池</h2>

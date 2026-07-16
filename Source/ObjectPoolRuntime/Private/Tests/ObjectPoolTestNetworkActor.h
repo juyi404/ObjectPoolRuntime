@@ -16,6 +16,8 @@ class AObjectPoolTestNetworkActor : public AActor, public IPoolableActorInterfac
 public:
 	AObjectPoolTestNetworkActor();
 
+	virtual void OnPoolCreated_Implementation() override;
+	virtual void OnPoolAcquireServer_Implementation(const FActorPoolAcquireContext& Context) override;
 	virtual void OnPoolAcquireClient_Implementation(const FActorPoolAcquireContext& Context) override;
 	virtual void OnPoolReleaseServer_Implementation() override;
 
@@ -38,8 +40,11 @@ public:
 	bool bAttemptReentrantRelease = false;
 	bool bReentrantReleaseResult = false;
 	bool bDestroyOnRelease = false;
+	bool bDestroyOnAcquire = false;
+	inline static bool bDestroyNextOnCreated = false;
 	EObjectPoolEntryState StateObservedDuringRelease = EObjectPoolEntryState::Unmanaged;
 	TObjectPtr<AActor> ReentrantAcquireResult = nullptr;
+	TSubclassOf<AActor> ReentrantAcquireClass;
 	TWeakObjectPtr<UObjectPoolSubsystem> PoolForReentrantRelease;
 
 private:
