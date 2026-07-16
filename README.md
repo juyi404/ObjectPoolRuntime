@@ -31,6 +31,12 @@ The current plugin descriptor targets Unreal Engine 5.7. Update `EngineVersion` 
 
 See [Source/ObjectPoolRuntime/README.md](Source/ObjectPoolRuntime/README.md) for the detailed lifecycle, recovery, network, diagnostics, and testing contract.
 
+## Documentation
+
+- [中文对象池源码导读与接入指南](docs/index.html)
+
+The Chinese guide covers the plugin architecture, data-driven settings, prewarming, lifecycle callbacks, ownership transfer, garbage collection, network replication policies, diagnostics, integration examples, and release validation.
+
 ## Main API
 
 - `UObjectPoolSubsystem::SpawnActorFromPool`

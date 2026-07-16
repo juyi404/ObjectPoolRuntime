@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="基于 Pool 项目源码整理的 Unreal Engine 对象池多章导读，覆盖 Actor、UObject、ActorComponent、预热、回收、GC 与网络复制。">
+  <title>UE 对象池：从预热到网络复用｜Pool 项目源码导读</title>
+  <style>
+    :root{--bg:#f5f7f5;--paper:#fff;--ink:#15211d;--muted:#65736d;--line:#dfe7e2;--brand:#087f5b;--brand2:#0ca678;--soft:#eaf7f1;--code:#10231c;--shadow:0 18px 60px rgba(20,52,41,.09)}
+    [data-theme="dark"]{--bg:#0e1714;--paper:#15211d;--ink:#e8f2ed;--muted:#9eb0a8;--line:#2b3b35;--brand:#63e6be;--brand2:#38d9a9;--soft:#1c3028;--code:#09100d;--shadow:none}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:28px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.85 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}a{color:inherit}code{font-family:"Cascadia Code",Consolas,monospace}.progress{position:fixed;z-index:20;inset:0 auto auto 0;height:3px;background:var(--brand2);width:0}.layout{display:grid;grid-template-columns:290px minmax(0,900px);gap:48px;max-width:1280px;margin:auto;padding:36px 28px 90px}.side{position:sticky;top:24px;align-self:start;height:calc(100vh - 48px);overflow:auto}.mark{font-weight:850;font-size:20px;letter-spacing:-.03em}.mark span{color:var(--brand)}.meta{color:var(--muted);font-size:13px;margin:8px 0 26px}.toc{display:grid;gap:4px}.toc a{text-decoration:none;color:var(--muted);padding:7px 10px;border-left:2px solid var(--line);font-size:14px}.toc a:hover,.toc a.active{color:var(--brand);border-color:var(--brand);background:var(--soft)}.tools{display:flex;gap:8px;margin-top:24px}.tools button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:7px 12px;cursor:pointer}.hero{padding:76px 0 70px}.eyebrow{display:inline-block;color:var(--brand);font-weight:800;letter-spacing:.08em;font-size:13px;text-transform:uppercase}.hero h1{font-size:clamp(42px,7vw,78px);line-height:1.03;letter-spacing:-.065em;margin:18px 0 24px;max-width:850px}.hero .lead{font-size:20px;max-width:750px;color:var(--muted)}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}.chip{border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;background:var(--paper)}.chapter{background:var(--paper);border:1px solid var(--line);border-radius:24px;padding:clamp(25px,5vw,58px);margin-bottom:28px;box-shadow:var(--shadow)}.chapter-no{font:800 13px/1 monospace;color:var(--brand);letter-spacing:.12em}.chapter h2{font-size:clamp(28px,4vw,44px);line-height:1.15;letter-spacing:-.045em;margin:14px 0 28px}.chapter h3{font-size:22px;line-height:1.35;margin:38px 0 12px}.chapter h4{font-size:17px;margin:25px 0 8px}.chapter p{margin:0 0 16px}.chapter ul,.chapter ol{padding-left:1.3em}.callout{border-left:4px solid var(--brand);background:var(--soft);padding:18px 20px;border-radius:0 12px 12px 0;margin:24px 0}.mapping{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:22px 0}.mapping>div{background:var(--soft);border-radius:12px;padding:14px}.arrow{color:var(--brand);font-weight:900}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);border-radius:15px;padding:18px}.card strong{display:block;color:var(--brand);margin-bottom:5px}.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:20px 0}.step{padding:8px 11px;border-radius:9px;background:var(--soft);font-family:Consolas,monospace;font-size:13px}.flow b{color:var(--brand)}pre{background:var(--code);color:#d8f3e8;border-radius:14px;padding:18px;overflow:auto;font-size:13px;line-height:1.6}.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}.shots figure{margin:0;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg)}.shots img{display:block;width:100%;height:auto}.shots figcaption{padding:9px 12px;font-size:12px;color:var(--muted)}.note{color:var(--muted);font-size:14px}.check li{margin:8px 0}.footer{text-align:center;color:var(--muted);font-size:13px;padding:35px}.mobile-nav{display:none}.term{white-space:nowrap}.comparison{overflow:auto}.comparison table{width:100%;border-collapse:collapse;min-width:620px}.comparison th,.comparison td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}.comparison th{color:var(--brand)}
+    details{border:1px solid var(--line);border-radius:12px;padding:0 16px;margin:12px 0;background:var(--bg)}summary{cursor:pointer;font-weight:750;padding:13px 0;color:var(--brand)}details>div{padding:0 0 14px}.kicker{font-size:12px;font-weight:800;color:var(--brand);letter-spacing:.08em;text-transform:uppercase}.sequence{counter-reset:seq;display:grid;gap:12px;margin:20px 0}.sequence>div{position:relative;padding:15px 15px 15px 54px;border:1px solid var(--line);border-radius:13px}.sequence>div:before{counter-increment:seq;content:counter(seq);position:absolute;left:15px;top:14px;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--brand);color:var(--paper);font-weight:800;font-size:13px}
+    @media(max-width:900px){.layout{display:block;padding:18px}.side{display:none}.mobile-nav{display:block;position:sticky;top:8px;z-index:10}.mobile-nav select{width:100%;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}.hero{padding:56px 8px}.cards,.shots{grid-template-columns:1fr}.mapping{grid-template-columns:1fr}.arrow{transform:rotate(90deg);text-align:center}.chapter{border-radius:18px;padding:26px 20px}.hero h1{font-size:46px}}
+    @media print{.side,.mobile-nav,.progress,.tools{display:none}.layout{display:block;max-width:none;padding:0}.chapter{break-inside:auto;box-shadow:none}.shots figure{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="layout">
+  <aside class="side">
+    <div class="mark">Object<span>Pool</span> Runtime</div>
+    <div class="meta">UE 5.7 · 源码导读 · 多章版</div>
+    <nav class="toc" id="toc">
+      <a href="#c0">项目概览</a><a href="#c1">01 为什么需要对象池</a><a href="#c2">02 总体架构</a><a href="#c3">03 数据驱动配置</a><a href="#c4">04 世界级管理器</a><a href="#c5">05 分桶与状态机</a><a href="#c6">06 初始化与预热</a><a href="#c7">07 三类对象如何取用</a><a href="#c8">08 三类对象如何回收</a><a href="#c9">09 网络复制</a><a href="#c10">10 GC 与业务边界</a><a href="#c11">11 完整主流程</a><a href="#c12">12 诊断与结论</a><a href="#c13">13 接入实战</a><a href="#appendix">源码阅读路线</a>
+    </nav>
+    <div class="tools"><button id="theme">切换主题</button><button onclick="print()">打印</button></div>
+  </aside>
+  <main>
+    <div class="mobile-nav"><select id="jump"><option value="">跳转章节…</option></select></div>
+    <header class="hero">
+      <span class="eyebrow">Unreal Engine / C++ / Network Replication</span>
+      <h1>对象池不只是“少 Spawn 几次”</h1>
+      <p class="lead">它是一份跨越对象生命周期、World、GC、所有权与网络身份的契约。本指南以当前 <code>ObjectPoolRuntime</code> 插件源码为准，解释架构、配置、生命周期、复制约束与接入方法。</p>
+      <div class="chips"><span class="chip">Actor</span><span class="chip">UObject</span><span class="chip">ActorComponent</span><span class="chip">WorldSubsystem</span><span class="chip">GameplayTag</span><span class="chip">Replication</span></div>
+    </header>
+
+    <section class="chapter" id="c0"><span class="chapter-no">PROJECT OVERVIEW</span><h2>项目概览：一个可移植的 UE 运行时插件</h2>
+      <p><code>ObjectPoolRuntime</code> 是一个独立于具体玩法的 Unreal Engine 运行时插件，为 Actor、普通 UObject 和 ActorComponent 提供统一的池化能力。插件核心由世界级子系统、按类分桶容器、数据驱动配置、生命周期接口和网络复制支持构成。</p>
+      <div class="mapping"><div><strong>对外入口</strong><br><code>UObjectPoolSubsystem</code><br><code>UObjectPoolSettings</code></div><span class="arrow">→</span><div><strong>内部基础</strong><br><code>FPooledObjectBucket</code><br><code>EObjectPoolEntryState</code></div></div>
+      <div class="callout"><strong>复制安全底线</strong>　只有 <code>DestroyRemoteReplica</code> 允许同一个服务端 UObject/Component 实例回池并再次复用；其余远端释放策略会主动放弃服务端实例，避免网络身份与 Owner 冲突。</div>
+      <div class="shots"><figure><img src="object-pool-article-assets/image1.png" alt="对象池总体架构图"><figcaption>图 1：对象池总体架构与职责分层</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c1"><span class="chapter-no">CHAPTER 01</span><h2>为什么需要对象池</h2>
+      <p>在 UE 中，频繁执行 <code>SpawnActor / DestroyActor</code>、<code>NewObject / GC</code>、组件注册与反注册，以及网络复制对象的建立和清理，都会形成运行时成本。对象池把“每次创建与销毁”改造成“预先创建、用后复位、下次重新初始化”。</p>
+      <div class="cards"><div class="card"><strong>第一次</strong>预创建一批对象，承担一次性构建成本。</div><div class="card"><strong>使用完</strong>不真正销毁，重置状态后放回池。</div><div class="card"><strong>再次需要</strong>直接从池中取得并重新初始化。</div><div class="card"><strong>主要收益</strong>减少分配释放、降低 GC 压力和战斗期突发 Spawn 卡顿。</div></div>
+      <p>这种模式尤其适用于高频召唤的 Actor、复制子对象和动态组件。它的价值并非让创建“免费”，而是把不稳定的尖峰工作前移，并让复用路径可控。</p>
+    </section>
+
+    <section class="chapter" id="c2"><span class="chapter-no">CHAPTER 02</span><h2>总体架构：四层协作</h2>
+      <ol><li><strong>配置层：</strong>决定哪些类能入池，编辑器、服务端、客户端分别预分配多少，以及采用哪种恢复策略。</li><li><strong>管理层：</strong><code>UObjectPoolSubsystem</code> 绑定 World 生命周期，负责预热和统一的获取/释放 API。</li><li><strong>容器层：</strong><code>FPooledObjectBucket</code> 按类保存不活跃对象，并记录容量与统计数据。</li><li><strong>业务协作层：</strong>框架调用生命周期回调，对象自己清理和恢复业务状态。</li></ol>
+      <p>公开入口包括 <code>SpawnActorFromPool</code>、<code>GetObjectFromPool</code>、<code>GetComponentFromPool</code>，以及三种对应的 <code>Release*ToPool</code>。Actor 的获取与激活统一由 <code>SpawnActorFromPool</code> 完成，同时建立 Transform、Owner、Instigator 和 ModeTag 组成的复用上下文。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image2.png" alt="配置入口代码"><figcaption>图 2：三类池配置入口</figcaption></figure><figure><img src="object-pool-article-assets/image3.png" alt="按模式配置代码"><figcaption>图 3：按 GameplayTag 选择配置</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c3"><span class="chapter-no">CHAPTER 03</span><h2>配置层：由模式与数据驱动</h2>
+      <p>当前入口是 <code>UObjectPoolSettings</code>。它提供 <code>ModeConfigs</code>（<code>FGameplayTag → FPoolModeConfig</code>）、无需 Tag 的 <code>DefaultModeConfig</code>、<code>DefaultModeTag</code>、模式提供函数名 <code>ModeTagProviderFunctionName</code> 与全局开关 <code>bEnabled</code>。</p>
+      <p>每个模式配置都包含 Actor、UObject、Component 三组类配置。共同字段是：是否启用、Editor/Server/Client 预热数量、最大容量、是否允许运行时扩容，以及恢复策略。对象和组件还额外包含复制开关及远端副本释放策略。</p>
+      <h3>为什么按 GameplayTag 切换</h3><p>池容量和可池化类通常与游戏模式强相关。与其维护一份全局固定配置，不如让 GameState 的约定函数返回当前模式 Tag，再由池选择对应配置。解析失败时回退到默认 Tag 或 <code>DefaultModeConfig</code>。当前插件还提供 <code>SwitchModeTag</code> 与 <code>RefreshModeTag</code>；但只有在没有 Active 或过渡中条目时才允许切换，避免旧模式对象与新配置混杂。</p>
+      <h3>恢复策略的权衡</h3>
+      <div class="comparison"><table><thead><tr><th>当前策略</th><th>框架行为</th><th>业务责任</th></tr></thead><tbody><tr><td><code>BusinessCallbacksOnly</code></td><td>只执行业务回调；必要的所有权转移清理仍会发生</td><td>最大，最快但最容易遗漏</td></tr><tr><td><code>ResetFrameworkState</code></td><td>额外清计时器，并重置框架拥有的 Tick/激活/注册状态</td><td>仍须清 Blueprint 变量、引用和技能状态</td></tr><tr><td><code>Full</code></td><td>进一步清 Latent Action、附件等框架状态</td><td>仍无法通用清材质、特效、物理速度、Buff、委托等</td></tr></tbody></table></div>
+      <p class="note">恢复越彻底越安全，但成本也越高；恢复越轻量，业务类越必须可靠地清理自身状态。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image4.png" alt="对象配置单元"><figcaption>图 4：UObject 配置单元</figcaption></figure><figure><img src="object-pool-article-assets/image5.png" alt="恢复策略枚举"><figcaption>图 5：恢复策略枚举</figcaption></figure><figure><img src="object-pool-article-assets/image6.png" alt="配置公共基类"><figcaption>图 6：客户端、服务端与编辑器预分配配置</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c4"><span class="chapter-no">CHAPTER 04</span><h2>管理层：为什么挂在 WorldSubsystem</h2>
+      <p>对象池天然与 World 生命周期一致：地图加载时创建，地图卸载时销毁，不同 World 各自维护自己的池。<code>DoesSupportWorldType()</code> 限制支持 Game 与 PIE，因此它是运行时世界池，而不是全局单例池。</p>
+      <p>子系统分别维护 Actor、UObject 与 Component 的桶和 Managed 记录。每个 <code>FPooledObjectBucket</code> 对应一个类，并携带条目状态、最大容量、命中/未命中、创建量和预热量等运行数据。</p>
+      <div class="callout"><strong>按类分桶</strong>　key 是类，value 是该类的一组可复用对象。这是简单、可预测、便于配置与统计的结构。</div>
+      <div class="shots"><figure><img src="object-pool-article-assets/image7.png" alt="支持的世界类型"><figcaption>图 7：运行时支持的 World 类型</figcaption></figure><figure><img src="object-pool-article-assets/image8.png" alt="三类池表"><figcaption>图 8：Actor / Object / Component 分桶</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c5"><span class="chapter-no">CHAPTER 05</span><h2>容器层：从简单数组到受约束状态机</h2>
+      <p><code>FPooledObjectBucket</code> 保存某个类的不活跃对象，避免重复入池，并在取出时跳过失效引用。按类小规模池结构直接、可预测；大量对象场景则需要结合命中率、容量和业务分布评估。</p>
+      <p>每个受管对象都遵循 <code>Unmanaged → Preallocating → Active → Releasing → Inactive</code> 状态约束。<code>Preallocating</code> 与 <code>Releasing</code> 是受保护的过渡态，递归释放会被拒绝；生命周期回调若让对象失效，系统会重新验证所有权与桶状态后再继续。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image9.png" alt="池数组成员"><figcaption>图 9：池容器核心数据</figcaption></figure><figure><img src="object-pool-article-assets/image10.png" alt="对象入池实现"><figcaption>图 10：对象放回池的关键处理</figcaption></figure><figure><img src="object-pool-article-assets/image11.png" alt="对象出池实现"><figcaption>图 11：从池中取得有效对象</figcaption></figure><figure><img src="object-pool-article-assets/image12.png" alt="清池实现"><figcaption>图 12：容器清理流程</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c6"><span class="chapter-no">CHAPTER 06</span><h2>生命周期：Initialize、BeginPlay 与异步预热</h2>
+      <p><code>Initialize()</code> 建立 World 生命周期联系；池实例创建后不会立即预分配，而是在 World 真正进入 BeginPlay 时统一预热。插件首先检查设置中的 <code>bEnabled</code>，随后依次启动 Actor、UObject 与 Component 的预热流程。</p>
+      <div class="flow"><span class="step">Initialize</span><b>→</b><span class="step">OnWorldBeginPlay</span><b>→</b><span class="step">ResolveCurrentModeTag</span><b>→</b><span class="step">异步加载 SoftClass</span><b>→</b><span class="step">按端选择数量</span><b>→</b><span class="step">创建并进入 Inactive</span></div>
+      <p>三类预热的共同套路是：解析当前模式、收集启用类的 SoftClassPath、异步加载、按 Editor/Server/Client 数量创建，然后通过统一的释放/停用路径让对象以一致状态进入池。当前实现还把目标不活跃数量限制在 <code>0..MaxPoolSize</code>。</p>
+      <h3>三种对象怎样预创建</h3>
+      <ul><li><strong>Actor：</strong>通过标准 Actor 创建链预热，而不是裸 <code>NewObject&lt;AActor&gt;</code>，以保证组件、蓝图与构造流程接近正常 Spawn。</li><li><strong>UObject：</strong><code>NewObject</code> 后移入池专用 Outer，并进入不活跃状态。</li><li><strong>Component：</strong>创建动态组件并建立完整状态，入池时保持反注册并移动到组件池 Owner；再次分配时即可安全转交给另一个 Actor。</li></ul>
+      <div class="shots"><figure><img src="object-pool-article-assets/image13.png" alt="初始化事件绑定"><figcaption>图 13：Initialize 与 BeginPlay 生命周期</figcaption></figure><figure><img src="object-pool-article-assets/image14.png" alt="BeginPlay 预热入口"><figcaption>图 14：三类对象的预热入口</figcaption></figure><figure><img src="object-pool-article-assets/image15.png" alt="模式 Tag 解析"><figcaption>图 15：模式 Tag 动态解析与回退</figcaption></figure><figure><img src="object-pool-article-assets/image16.png" alt="预热调用模式配置"><figcaption>图 16：预热流程读取当前模式</figcaption></figure><figure><img src="object-pool-article-assets/image17.png" alt="Actor 预分配"><figcaption>图 17：Actor 标准创建链预热</figcaption></figure><figure><img src="object-pool-article-assets/image18.png" alt="UObject 预分配"><figcaption>图 18：UObject 预创建</figcaption></figure><figure><img src="object-pool-article-assets/image19.png" alt="Component 预分配"><figcaption>图 19：组件创建、规范化与入池</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c7"><span class="chapter-no">CHAPTER 07</span><h2>取出：Actor、UObject、Component 各有不同契约</h2>
+      <h3>Actor</h3><p><code>SpawnActorFromPool</code> 会先从桶中取得不活跃 Actor；若没有命中且配置允许扩容，则创建新 Actor。随后构造 <code>FActorPoolAcquireContext</code>，填入 Transform、Owner、Instigator 与当前 ModeTag，并根据权威端/客户端派发 <code>OnPoolAcquireServer</code> 或 <code>OnPoolAcquireClient</code>。池负责框架流程，真正的业务复位、位置朝向和启用逻辑由 Actor 回调完成。</p>
+      <h3>UObject</h3><p><code>GetObjectFromPool(Outer, Class)</code> 取得对象后，把它从池专用 Outer 迁移到新的 Outer，再调用 <code>OnObjectAcquired</code>。Outer 决定生命周期归属、对象路径和部分查找关系；如果不迁移，复用对象可能仍挂在旧拥有者下。</p>
+      <h3>ActorComponent</h3><p><code>GetComponentFromPool(Owner, Class)</code> 取得组件后，先规范化旧注册和旧世界状态，再转交给新 Owner 并调用 <code>OnComponentAcquired</code>。取出阶段仍可能执行反注册，这是为了先清理旧挂接，再由新的业务流程完成注册与激活。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image20.png" alt="Actor 出池"><figcaption>图 20：Actor 出池路径</figcaption></figure><figure><img src="object-pool-article-assets/image21.png" alt="Actor Spawn 调用点"><figcaption>图 21：Actor 创建路径中的池调用</figcaption></figure><figure><img src="object-pool-article-assets/image22.png" alt="SpawnActorFromPool"><figcaption>图 22：构造 Actor 复用参数并派发回调</figcaption></figure><figure><img src="object-pool-article-assets/image23.png" alt="网络 Actor 获取"><figcaption>图 23：网络序列化路径中的 Actor 获取</figcaption></figure><figure><img src="object-pool-article-assets/image24.png" alt="GetObjectFromPool"><figcaption>图 24：UObject 更换 Outer 与激活回调</figcaption></figure><figure><img src="object-pool-article-assets/image25.png" alt="UObject 调用链"><figcaption>图 25：UObject 获取调用链</figcaption></figure><figure><img src="object-pool-article-assets/image26.png" alt="ASC UObject 调用"><figcaption>图 26：ASC 实例化路径</figcaption></figure><figure><img src="object-pool-article-assets/image27.png" alt="ActorChannel UObject 调用"><figcaption>图 27：ActorChannel 中的对象实例化</figcaption></figure><figure><img src="object-pool-article-assets/image28.png" alt="GetActorComponentFromPool"><figcaption>图 28：组件取出与注册状态规范化</figcaption></figure><figure><img src="object-pool-article-assets/image29.png" alt="Component 调用链"><figcaption>图 29：组件获取调用链</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c8"><span class="chapter-no">CHAPTER 08</span><h2>回收：先结束身份，再进入容器</h2>
+      <h3>Actor 回收</h3><p><code>ReleaseActorToPool</code> 验证目标确为当前子系统管理的 Active Actor，使其进入 Releasing，按恢复策略停用，并派发服务端或客户端 Release 回调，最后放回对应类桶。Actor 先在业务回调中清理自己，池负责存放、容量与状态约束。</p>
+      <h3>UObject 回收</h3><p>系统验证配置与管理关系，执行复制注册和远端副本策略，调用 <code>OnObjectReleased</code>，再将对象移回池专用 Outer 与对象桶。若网络策略无法保证远端身份已结束，则当前服务端实例不会被重新使用。</p>
+      <h3>Component 回收</h3><p>除复制身份外，还必须处理注册与 Owner：组件从旧 Actor 反注册，按策略清理框架状态，调用 <code>OnComponentReleased</code>，移交给组件池 Owner，最后进入对应类桶。</p>
+      <p class="note">回收入口既可由游戏逻辑主动调用，也可接入 Actor 销毁、技能实例清理或网络 Channel 清理等生命周期节点；接入方必须保证同一对象不会重复或递归释放。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image30.png" alt="Actor 回收"><figcaption>图 30：Actor 回收与生命周期回调</figcaption></figure><figure><img src="object-pool-article-assets/image31.png" alt="UObject 回收"><figcaption>图 31：UObject 清理网络状态后入池</figcaption></figure><figure><img src="object-pool-article-assets/image32.png" alt="Component 回收"><figcaption>图 32：Component 回收与注册状态处理</figcaption></figure><figure><img src="object-pool-article-assets/image33.png" alt="回收调用位置"><figcaption>图 33：销毁与 Channel 清理路径中的回收</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c9"><span class="chapter-no">CHAPTER 09</span><h2>网络复制：内存复用不等于网络身份可复用</h2>
+      <p>网络对象回收必须结束其旧的复制身份，包括停止后续复制、清除 registered subobject 关系、处理远端副本，并解除旧 Owner 与 Channel 上下文。否则对象换到新的 Owner 或业务上下文后，可能出现网络身份冲突、Replicator 残留或客户端状态错乱。</p>
+      <p>Actor 的复制生命周期由 <code>UPooledActorNetworkStateComponent</code> 协调；UObject 与 Component 则由子系统根据远端释放策略决定能否保留服务端实例。这里不能只把“本地已放回数组”当成“网络上已经安全回收”。</p>
+      <h3>当前插件的精确契约</h3>
+      <ul><li>池化 Actor 使用一个复制生命周期状态：<code>Active</code>、<code>Generation</code>、<code>AcquireContext</code>。Generation 改变可在 Release/Acquire 被合并进一次复制更新时重建 Release 回调。</li><li>复制 UObject 必须由权威、可复制 Actor 通过 registered subobject list 持有。</li><li>复制组件在所有权转移前必须从旧 Actor 反注册。</li><li><code>DestroyRemoteReplica</code>：显式销毁远端副本，服务端同一实例才可安全回池复用。</li><li><code>UnregisterOnly</code>：只停止后续复制，不保证现有客户端副本立刻消失；为避免身份/Owner 冲突，服务端实例被丢弃而不复用。</li><li><code>TearOffRemoteReplica</code>：留下独立客户端副本；被 TearOff 的网络身份不能安全复用，因此服务端实例同样丢弃。</li></ul>
+      <div class="shots"><figure><img src="object-pool-article-assets/image34.png" alt="清理 GUID 状态"><figcaption>图 34：网络 GUID 与复制状态清理</figcaption></figure><figure><img src="object-pool-article-assets/image35.png" alt="清理子对象 Channel 状态"><figcaption>图 35：子对象在 ActorChannel 中的引用清理</figcaption></figure><figure><img src="object-pool-article-assets/image36.png" alt="清理 Actor Channel"><figcaption>图 36：Actor Channel 清理流程</figcaption></figure><figure><img src="object-pool-article-assets/image37.png" alt="Actor 回调清理网络"><figcaption>图 37：Actor 服务端网络回收职责</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c10"><span class="chapter-no">CHAPTER 10</span><h2>GC 与业务边界：框架不能替对象理解自己</h2>
+      <p>池中对象不一定在场景中活跃，也未必位于普通 UObject 引用链上。插件通过子系统拥有的池 Outer、组件池 Owner、容器与 Managed 记录配合 UE 引用体系，维持闲置对象的可达性，避免仍在池中的对象被 GC。</p>
+      <p>从正常生命周期抽离对象之后，框架必须明确告诉 GC：“对象虽然闲置，但还不能回收。”但它无法通用恢复所有业务状态，例如：</p>
+      <div class="cards"><div class="card"><strong>运行状态</strong>Tick、可见性、碰撞、激活、物理速度</div><div class="card"><strong>异步与事件</strong>绑定事件、计时器、Latent Action、动态委托</div><div class="card"><strong>所有权与引用</strong>Owner、Instigator、Outer、子对象、目标引用</div><div class="card"><strong>游戏语义</strong>蓝图变量、技能、Buff、材质、Niagara、音频</div></div>
+      <p>边界必须清楚：框架负责预分配、存放、取出、容量、GC 保护、所有权迁移和网络复制层处理；业务对象负责如何回收自己、如何重新启用自己。Actor 回调是 <code>OnPoolReleaseServer/Client</code> 与 <code>OnPoolAcquireServer/Client</code>，UObject/Component 则是 <code>OnObjectReleased/Acquired</code> 与 <code>OnComponentReleased/Acquired</code>。</p>
+      <div class="shots"><figure><img src="object-pool-article-assets/image38.png" alt="GC Root 保护"><figcaption>图 38：开发环境中的 Root 保护</figcaption></figure><figure><img src="object-pool-article-assets/image39.png" alt="GC 引用收集"><figcaption>图 39：池对象加入 GC 引用收集</figcaption></figure><figure><img src="object-pool-article-assets/image40.png" alt="生命周期接口"><figcaption>图 40：业务对象实现生命周期回调</figcaption></figure></div>
+    </section>
+
+    <section class="chapter" id="c11"><span class="chapter-no">CHAPTER 11</span><h2>三条完整主流程</h2>
+      <h3>Actor</h3><div class="flow"><span class="step">BeginPlay / Prewarm</span><b>→</b><span class="step">标准 Spawn</span><b>→</b><span class="step">ReleaseActorToPool</span><b>→</b><span class="step">Inactive</span><b>→</b><span class="step">SpawnActorFromPool</span><b>→</b><span class="step">Acquire 回调</span></div>
+      <p>预热阶段由子系统解析模式、异步加载类并按当前运行端创建 Actor；再次使用时从对应桶取出，构造 <code>FActorPoolAcquireContext</code>，派发服务端或客户端 Acquire 回调，由 Actor 恢复业务状态。</p>
+      <h3>UObject</h3><div class="flow"><span class="step">NewObject</span><b>→</b><span class="step">ReleaseObjectToPool</span><b>→</b><span class="step">复制策略 + Released</span><b>→</b><span class="step">池 Outer</span><b>→</b><span class="step">GetObjectFromPool</span><b>→</b><span class="step">新 Outer + Acquired</span></div>
+      <p>回收时结束复制关系、调用 Released 回调并迁移到池 Outer；复用时迁移到新的 Outer，再调用 Acquired 回调。</p>
+      <h3>ActorComponent</h3><div class="flow"><span class="step">创建组件</span><b>→</b><span class="step">建立完整组件状态</span><b>→</b><span class="step">ReleaseComponentToPool</span><b>→</b><span class="step">Unregister + 池 Owner</span><b>→</b><span class="step">GetComponentFromPool</span><b>→</b><span class="step">新 Owner + Acquired</span></div>
+      <p>回收时按策略结束复制关系、反注册并转移到组件池 Owner；取出时先规范化旧状态，再迁移到新 Owner 并触发 Acquired 回调。</p>
+    </section>
+
+    <section class="chapter" id="c12"><span class="chapter-no">CHAPTER 12</span><h2>诊断、边界与关键结论</h2>
+      <ul class="check"><li>不要把当前主方案与旧的 <code>FObjectRecyclePool / RecycleSet</code> 混在一起。</li><li>配置按模式 Tag 切换，不是一份写死的全局配置；简单项目也能使用 <code>DefaultModeConfig</code>。</li><li>这不是纯 Actor 池，它同时支持普通 UObject 和 UActorComponent。</li><li>网络复制清理是核心难点，尤其是跨 Owner 复用的子对象和组件。</li><li>框架只重置它拥有的状态，任意业务变量仍必须由生命周期回调清理。</li><li>所有获取、释放、预热与模式切换 API 都只能在 Game Thread 调用。</li></ul>
+      <h3>当前项目自带的观测工具</h3><p><code>Pool.Dump</code> 输出池数量、命中率与预热状态；<code>Pool.Validate</code> 检查 Bucket→Managed 和 Managed→Bucket 所有权不变量；<code>Pool.ValidateOnMutation 1</code> 可在每次获取/释放后检查；<code>Pool.NetSmoke</code> 验证 Actor 复用以及 UObject/Component 跨 Owner 复用，并可用 <code>Pool.NetSmoke.ReleasePolicy 0|1|2</code> 选择三种远端释放策略。</p>
+      <pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Scripts\TestObjectPool.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Scripts\BuildObjectPool.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Scripts\NetworkSmokeObjectPool.ps1 \
+  -PackageDirectory .\Saved\PackagedTests\ObjectPoolGenericComplete</code></pre>
+      <div class="callout"><strong>最终结论</strong>　对象池真正复用的不是一块孤立内存，而是一个曾经属于某个 World、Owner、GC 引用链和网络身份的对象。安全复用的核心，是让旧身份完整结束，再让新身份按明确契约开始。</div>
+    </section>
+
+    <section class="chapter" id="c13"><span class="chapter-no">CHAPTER 13</span><h2>接入实战：从安装到验收</h2>
+      <p>这一章把前面的设计契约落到实际项目中。目标不是“能从池里拿出对象”就算完成，而是让对象在多次获取、释放、跨 Owner 以及网络环境下都保持一致。</p>
+
+      <h3>第一步：安装与启用插件</h3>
+      <div class="sequence"><div>将 <code>ObjectPoolRuntime</code> 仓库放入目标项目的 <code>Plugins/ObjectPoolRuntime</code>。插件目录下应直接看到 <code>ObjectPoolRuntime.uplugin</code> 和 <code>Source</code>。</div><div>重新生成项目文件并编译 Editor Target。插件依赖 Core、CoreUObject、Engine、DeveloperSettings、GameplayTags 等 UE 模块，不依赖 Shooter 或 Horror 示例玩法。</div><div>在编辑器的 Plugins 窗口确认 <strong>Object Pool Runtime</strong> 已启用，然后在 Project Settings 中找到 <strong>Object Pool</strong> 配置页。</div><div>第一次接入只配置一个低风险类，验证完整生命周期后再逐步扩展，不要一次把所有高频对象都改成池化。</div></div>
+
+      <h3>第二步：理解每个配置字段</h3>
+      <div class="comparison"><table><thead><tr><th>字段</th><th>作用</th><th>建议</th></tr></thead><tbody><tr><td><code>bEnabled</code></td><td>决定该类是否参与池化</td><td>调试单个类时可快速关闭，不必删除配置</td></tr><tr><td><code>EditorPreallocateCount</code></td><td>编辑器运行环境的预热数量</td><td>用于 PIE 调试，通常接近客户端或略小</td></tr><tr><td><code>ServerPreallocateCount</code></td><td>权威服务器预热数量</td><td>按服务器同时活跃峰值与生成速率估算</td></tr><tr><td><code>ClientPreallocateCount</code></td><td>客户端预热数量</td><td>只覆盖客户端实际会创建或持有的实例</td></tr><tr><td><code>MaxPoolSize</code></td><td>每个类桶的容量上限</td><td>必须大于等于预热数，并留出合理峰值余量</td></tr><tr><td><code>bAllowRuntimeGrowth</code></td><td>池未命中时是否允许创建新实例</td><td>稳定性优先时开启；严格预算场景可关闭并监控 Miss</td></tr><tr><td><code>RecoveryPolicy</code></td><td>框架清理强度</td><td>先用 ResetFrameworkState，确认回调完整后再按性能调整</td></tr></tbody></table></div>
+      <div class="callout"><strong>配置校验</strong>　插件启动时会调用 <code>ValidateSettings</code>。负数预热数量、预热数超过最大容量、同一模式重复配置同一个类，以及无效类路径都应在进入游戏前修正。</div>
+
+      <h3>第三步：实现 Actor 生命周期</h3>
+      <p>池化 Actor 实现 <code>IPoolableActorInterface</code>。<code>OnPoolCreated</code> 只在实例首次创建时调用，适合做不会随每次使用变化的初始化；Acquire/Release 回调则必须支持多次执行。</p>
+      <pre><code>void AMyProjectile::OnPoolAcquireServer_Implementation(
+    const FActorPoolAcquireContext&amp; Context)
+{
+    SetActorTransform(Context.Transform);
+    SetOwner(Context.Owner);
+    SetInstigator(Context.Instigator);
+    SetActorHiddenInGame(false);
+    SetActorEnableCollision(true);
+    SetActorTickEnabled(true);
+    RemainingLife = MaxLife;
+}
+
+void AMyProjectile::OnPoolReleaseServer_Implementation()
+{
+    GetWorldTimerManager().ClearAllTimersForObject(this);
+    SetActorEnableCollision(false);
+    SetActorTickEnabled(false);
+    SetActorHiddenInGame(true);
+    SetOwner(nullptr);
+    SetInstigator(nullptr);
+    HitActors.Reset();
+}</code></pre>
+      <p class="note">客户端回调应恢复纯客户端表现，例如可见性、特效或插值状态；不要在客户端回调中执行只有服务器才有权决定的伤害、生成或持久状态变更。</p>
+
+      <h3>第四步：实现 UObject 与 Component 生命周期</h3>
+      <div class="cards"><div class="card"><strong>UObject</strong><code>OnObjectPoolCreated</code> 做一次性初始化；<code>OnObjectAcquired</code> 读取新的 Outer/Owner 上下文并恢复状态；<code>OnObjectReleased</code> 解绑委托、清目标引用、取消异步任务和业务计时。</div><div class="card"><strong>ActorComponent</strong><code>OnComponentPoolCreated</code> 做一次性初始化；<code>OnComponentAcquired</code> 面向新 Owner 建立绑定；<code>OnComponentReleased</code> 停止 Tick、解绑旧 Owner、清物理/特效状态。</div></div>
+      <pre><code>UObjectPoolSubsystem* Pool = World-&gt;GetSubsystem&lt;UObjectPoolSubsystem&gt;();
+
+UObject* PooledObject = Pool-&gt;GetObjectFromPool(NewOuter, ObjectClass);
+UActorComponent* PooledComponent =
+    Pool-&gt;GetComponentFromPool(NewOwner, ComponentClass);
+
+// 使用结束后必须调用与类型对应的释放入口。
+Pool-&gt;ReleaseObjectToPool(PooledObject);
+Pool-&gt;ReleaseComponentToPool(PooledComponent);</code></pre>
+
+      <h3>第五步：正确选择远端释放策略</h3>
+      <details open><summary>DestroyRemoteReplica：真正的跨周期复用</summary><div>服务端在回收前明确移除客户端副本，随后同一个服务端 UObject 或 Component 实例可以进入池并用于新的 Owner。它最符合传统对象池语义，但需要完整、可靠的远端销毁路径。</div></details>
+      <details><summary>UnregisterOnly：停止复制，但不承诺远端立即消失</summary><div>系统只停止后续复制。客户端旧副本可能继续存在一段时间，因此服务端实例不能换 Owner 后再次复用，否则会产生网络身份冲突。该实例会被丢弃。</div></details>
+      <details><summary>TearOffRemoteReplica：保留独立客户端副本</summary><div>客户端副本脱离服务器继续存在，适合希望远端表现自然结束的场景。由于旧网络身份被保留，服务端实例同样不能重新进入池。</div></details>
+
+      <h3>第六步：容量规划与命中率</h3>
+      <p>预热数量不应该凭感觉填写。先记录一个代表性战斗或关卡窗口内的同时活跃峰值、每秒生成峰值、平均存活时间和突发系数。初始预热量可接近稳定期 P95 活跃数，<code>MaxPoolSize</code> 再覆盖短时峰值。</p>
+      <div class="cards"><div class="card"><strong>命中率低</strong>预热不足、容量太小、对象存活过长，或类配置没有命中当前 ModeTag。</div><div class="card"><strong>池长期过大</strong>预热数或 MaxPoolSize 过高，模式切分不够细，闲置对象占用内存。</div><div class="card"><strong>Miss 但不扩容</strong><code>bAllowRuntimeGrowth=false</code>，调用方必须接受获取失败并准备降级逻辑。</div><div class="card"><strong>创建数持续增长</strong>检查对象是否确实释放、释放是否被容量上限拒绝，以及远端策略是否要求丢弃实例。</div></div>
+
+      <h3>第七步：常见问题定位</h3>
+      <div class="comparison"><table><thead><tr><th>现象</th><th>优先检查</th><th>典型原因</th></tr></thead><tbody><tr><td>第二次使用带着旧目标</td><td>Release 回调</td><td>业务引用、委托、数组或 Blueprint 变量未清理</td></tr><tr><td>组件仍挂在旧 Actor</td><td>Owner 转移与注册状态</td><td>业务回调重新注册过早，或持有旧 Owner 引用</td></tr><tr><td>客户端没有收到 Acquire</td><td>Actor 网络状态组件与 Generation</td><td>Actor 未正确复制，或生命周期状态没有进入复制路径</td></tr><tr><td>模式切换失败</td><td>Active / Releasing 条目</td><td>仍有对象正在使用或处于过渡态</td></tr><tr><td>池中对象被 GC</td><td>是否由当前子系统管理</td><td>绕过创建/获取 API，或对象已被回调主动销毁</td></tr><tr><td>Release 返回 false</td><td>对象状态与归属</td><td>对象无效、不是 Active、已在池中、容量已满或不属于该子系统</td></tr></tbody></table></div>
+
+      <h3>第八步：发布前验收清单</h3>
+      <ul class="check"><li>同一实例连续获取/释放至少 100 次，没有状态串扰。</li><li>Actor 的 Transform、Owner、Instigator、Tick、碰撞、可见性和计时器都能正确复位。</li><li>UObject 跨 Outer、Component 跨 Owner 后不保留旧引用或注册关系。</li><li>服务端与客户端回调只执行各自应负责的逻辑。</li><li>三种远端释放策略均通过 <code>Pool.NetSmoke</code> 验证。</li><li><code>Pool.Validate</code> 没有 Bucket/Managed 所有权不一致。</li><li><code>Pool.Dump</code> 的命中率、创建量与容量符合预期。</li><li>地图卸载、PIE 重启和模式切换后没有残留对象或异步加载回调。</li></ul>
+      <div class="callout"><strong>推荐调试组合</strong>　在开发环境临时开启 <code>Pool.ValidateOnMutation 1</code>，跑自动化测试和网络烟测，再用 <code>Pool.Dump</code> 观察真实玩法中的命中率。确认稳定后关闭逐次校验，避免把诊断成本带入常规运行。</div>
+    </section>
+
+    <section class="chapter" id="appendix"><span class="chapter-no">SOURCE MAP</span><h2>源码阅读路线</h2>
+      <div class="cards"><div class="card"><strong>从 API 开始</strong><code>Public/ObjectPoolSubsystem.h</code>：获取、释放、模式切换、统计与验证入口。</div><div class="card"><strong>理解类型</strong><code>Public/ObjectPoolTypes.h</code>：条目状态、恢复策略、复制策略与类配置。</div><div class="card"><strong>跟进主流程</strong><code>Private/ObjectPoolSubsystem.cpp</code>：预热、创建、激活、停用、复制与所有权迁移。</div><div class="card"><strong>查看网络状态</strong><code>PooledActorNetworkStateComponent.*</code>：Actor 的 Active、Generation 与 AcquireContext。</div><div class="card"><strong>实现业务回调</strong><code>PoolableActorInterface.h</code>、<code>PoolableObjectInterface.h</code>、<code>PoolableComponentInterface.h</code>。</div><div class="card"><strong>验证集成</strong><code>Private/Tests</code>、<code>Pool.Dump</code>、<code>Pool.Validate</code> 与 <code>Pool.NetSmoke</code>。</div></div>
+      <div class="callout"><strong>推荐顺序</strong>　先读公开 API 和配置类型，再沿一次 Actor 获取/释放流程进入 cpp；最后阅读复制策略与自动化测试。这样更容易区分框架保证和业务回调责任。</div>
+      <p class="note">插件源码位于 <code>Plugins/ObjectPoolRuntime/Source/ObjectPoolRuntime</code>，详细运行契约见模块内 <code>README.md</code>。</p>
+    </section>
+    <div class="footer">ObjectPoolRuntime · Pool project · 2026</div>
+  </main>
+</div>
+<script>
+  const sections=[...document.querySelectorAll('.chapter')],links=[...document.querySelectorAll('.toc a')];
+  const jump=document.getElementById('jump');links.forEach(a=>{const o=document.createElement('option');o.value=a.hash;o.textContent=a.textContent;jump.append(o)});jump.onchange=()=>jump.value&&(location.hash=jump.value);
+  const observer=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.hash==='#'+e.target.id))}}),{rootMargin:'-20% 0px -70%'});sections.forEach(s=>observer.observe(s));
+  addEventListener('scroll',()=>{const h=document.documentElement;document.getElementById('progress').style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%'},{passive:true});
+  const saved=localStorage.getItem('pool-theme');if(saved)document.documentElement.dataset.theme=saved;
+  document.getElementById('theme').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=dark?'light':'dark';localStorage.setItem('pool-theme',dark?'light':'dark')};
+</script>
+</body>
+</html>
